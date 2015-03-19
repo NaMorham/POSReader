@@ -150,6 +150,12 @@ int main(int argc, char *argv[])
 	return 0;
 }
 
+#define READOCT(tval, is, var, buf, sz) 		\
+	do {						\
+	LOG_DEBUG(#var": "); 				\
+	readOctBuffer<tval>(is, buf, sz, var);	\
+	} while(0);
+
 template <typename T>
 void readOctBuffer(std::istream & is, char * buf, const size_t bufSize, T &value)
 {
@@ -205,16 +211,26 @@ void POSHeader::read(std::istream & is)
         throw RoamesError("Could not read CPIO header magic value");
     }
 
-    readOctBuffer<uint16_t>(is, small_buf, 7, m_c_dev);
-    readOctBuffer<uint16_t>(is, small_buf, 7, m_c_ino);
-    readOctBuffer<uint16_t>(is, small_buf, 7, m_c_mode);
-    readOctBuffer<uint16_t>(is, small_buf, 7, m_c_uid);
-    readOctBuffer<uint16_t>(is, small_buf, 7, m_c_gid);
-    readOctBuffer<uint16_t>(is, small_buf, 7, m_c_nlink);
-    readOctBuffer<uint16_t>(is, small_buf, 7, m_c_rdev);
-    readOctBuffer<uint32_t>(is, large_buf, 12, m_c_mtime);
-    readOctBuffer<uint16_t>(is, small_buf, 7, m_c_namesize);
-    readOctBuffer<uint32_t>(is, large_buf, 12, m_c_filesize);
+    READOCT(uint16_t, is, m_c_dev, small_buf, 7); 
+    READOCT(uint16_t, is, m_c_ino, small_buf, 7); 
+    READOCT(uint16_t, is, m_c_mode, small_buf, 7); 
+    READOCT(uint16_t, is, m_c_uid, small_buf, 7); 
+    READOCT(uint16_t, is, m_c_gid, small_buf, 7); 
+    READOCT(uint16_t, is, m_c_nlink, small_buf, 7); 
+    READOCT(uint16_t, is, m_c_rdev, small_buf, 7); 
+    READOCT(uint32_t, is, m_c_mtime, large_buf, 12); 
+    READOCT(uint16_t, is, m_c_namesize, small_buf, 7); 
+    READOCT(uint32_t, is, m_c_filesize, large_buf, 12); 
+    //readOctBuffer<uint16_t>(is, small_buf, 7, m_c_dev);
+    //readOctBuffer<uint16_t>(is, small_buf, 7, m_c_ino);
+    //readOctBuffer<uint16_t>(is, small_buf, 7, m_c_mode);
+    //readOctBuffer<uint16_t>(is, small_buf, 7, m_c_uid);
+    //readOctBuffer<uint16_t>(is, small_buf, 7, m_c_gid);
+    //readOctBuffer<uint16_t>(is, small_buf, 7, m_c_nlink);
+    //readOctBuffer<uint16_t>(is, small_buf, 7, m_c_rdev);
+    //readOctBuffer<uint32_t>(is, large_buf, 12, m_c_mtime);
+    //readOctBuffer<uint16_t>(is, small_buf, 7, m_c_namesize);
+    //readOctBuffer<uint32_t>(is, large_buf, 12, m_c_filesize);
 
     if (m_c_namesize >= 1)
     {
@@ -234,7 +250,7 @@ void POSHeader::read(std::istream & is)
     }
 
     m_dataOffset = m_headerOffset + 76 + m_c_namesize;
-    LOG_DEBUG("Offsets: start = %lu, data = %lu\n", m_headerOffset, m_dataOffset);
+    LOG_DEBUG("Offsets: start = %lu, data = %lu\n\n", m_headerOffset, m_dataOffset);
 }
 
 
