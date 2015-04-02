@@ -5,7 +5,9 @@
 #include <string>
 #include <memory>
 #include <map>
+#include <vector>
 
+#include <iostream>
 #include <sstream>
 #include <cstdlib>
 #include <cstdio>
@@ -19,10 +21,10 @@
 class RoamesError : public std::exception
 {
 public:
-	RoamesError(const char *format, ...) : txt(format), std::exception() {}
+    RoamesError(const char *format, ...) : txt(format), std::exception() {}
 
-	virtual const char *what() const noexcept { return txt.c_str(); }
-	std::string txt; 
+    virtual const char *what() const noexcept { return txt.c_str(); }
+    std::string txt; 
 };
 
 class POSHeader
@@ -106,21 +108,77 @@ public:
         return m_headers.size() < 1 ? 0 : m_headers.size()-1;
     }
 
+    bool hasDescriptionFile() const
+    {
+        return m_headers.count("description") == 1; // THERE CAN BE ONLY ONE!!!11!1one!!
+    }
+
+    const std::stringstream &readDescription(std::stringstream &ss) const;
+
 private:
     typedef std::map<std::string, POSHeader> HeaderMap;
 
     HeaderMap m_headers;
     std::string m_filename;
-    std::ifstream m_fileStream;
+    mutable std::ifstream m_fileStream;
 };
+
+class GroupData
+{
+public:
+    enum eDataTypes
+    {
+        eDT_UNK = 0,
+        eDT_INT,
+        eDT_UINT,
+        eDT_LONG,
+        eDT_ULONG
+    };
+
+    GroupData(const eDataTypes type, const size_t sz) : m_type(type), m_size(sz)
+    {
+    }
+    GroupData(const GroupData &orig)
+    {
+        copyData(orig);
+    }
+    ~GroupData()
+    {
+    }
+    const GroupData &operator=(const GroupData &rhs)
+    {
+        copyData(rhs);
+        return *this;
+    }
+private:
+    void copyData(const GroupData &rhs)
+    {
+        m_type = rhs.m_type;
+        m_size = rhs.m_size;
+    }
+    eDataTypes m_type;
+    size_t m_size;
+};
+
+class GroupFile
+{
+public:
+    GroupFile() {}
+    ~GroupFile() {}
+
+private:
+    typedef std::map<std::string, GroupData> DataMap;
+
+    DataMap m_dataMap;  // maps variable names to data
+};
+
+typedef std::vector<GroupFile> GoupFileVector;
 
 int main(int argc, char *argv[])
 {
-    std::printf("DOOOOM\n\n");
-
     if (argc < 3)
     {
-        std::printf("Error: not enough args\n\n");
+        std::cerr << "Error: not enough args" << std::endl << std::endl;
         return 1;
     }
 
@@ -130,31 +188,47 @@ int main(int argc, char *argv[])
     std::ifstream is(inFile, std::ifstream::in | std::ifstream::binary);
     if (!is.is_open())
     {
-        std::printf("Could not open file \"%s\"\n\n", inFile.c_str());
+        std::cerr << "Could not open file \"" << inFile << "\"" << std::endl;
         return 1;
     }
+    is.close();
 
-    /*
-    POSHeader hdr, hdr2, hdr3;
-    hdr.read(is);
-    is.seekg(hdr.getDataOffset() + hdr.getDataSize());
-    hdr2.read(is);
-    is.seekg(hdr2.getDataOffset() + hdr2.getDataSize());
-    hdr3.read(is);
-    /*/
-    POSFile fl(inFile);
-    fl.read();
-    //*/
-	is.close();
+    try
+    {
+        POSFile fl(inFile);
+        fl.read();
+        std::stringstream descBuffer;
+        fl.readDescription(descBuffer);
+        std::cout << std::endl
+                  << "Description" << std::endl
+                  << "-----------" << std::endl
+                  << descBuffer.rdbuf() // should not need an endl
+                  << "-----------" << std::endl << std::endl;
 
-	return 0;
+        return 0;
+
+    }
+    catch (RoamesError &e)
+    {
+        std::cerr << "RoamesError while reading POS file [" << e.what() << "]" << std::endl;
+    }
+    catch (std::exception &e)
+    {
+        std::cerr << "std::exception while reading POS file [" << e.what() << "]" << std::endl;
+    }
+    catch(...)
+    {
+        std::cerr << "Unknown exception reading POS file" << std::endl;
+    }
+
+    return 1;
 }
 
-#define READOCT(tval, is, var, buf, sz) 		\
-	do {						\
-	LOG_DEBUG(#var": "); 				\
-	readOctBuffer<tval>(is, buf, sz, var);	\
-	} while(0);
+#define READOCT(tval, is, var, buf, sz)                 \
+    do {                                                \
+        LOG_DEBUG(#var": ");                            \
+        readOctBuffer<tval>(is, buf, sz, var);          \
+    } while(0);
 
 template <typename T>
 void readOctBuffer(std::istream & is, char * buf, const size_t bufSize, T &value)
@@ -191,8 +265,8 @@ void POSHeader::read(std::istream & is)
         throw RoamesError("Invalid input stream");
     }
 
-    char small_buf[7] = {0};    // 6 chars and null
-    char large_buf[12] = {0};    // 11 chars and null
+    char small_buf[7] = {0};        // 6 chars and null
+    char large_buf[12] = {0};       // 11 chars and null
 
     memset(small_buf, 0, 7);
     memset(large_buf, 0, 12);
@@ -211,26 +285,16 @@ void POSHeader::read(std::istream & is)
         throw RoamesError("Could not read CPIO header magic value");
     }
 
-    READOCT(uint16_t, is, m_c_dev, small_buf, 7); 
-    READOCT(uint16_t, is, m_c_ino, small_buf, 7); 
-    READOCT(uint16_t, is, m_c_mode, small_buf, 7); 
-    READOCT(uint16_t, is, m_c_uid, small_buf, 7); 
-    READOCT(uint16_t, is, m_c_gid, small_buf, 7); 
-    READOCT(uint16_t, is, m_c_nlink, small_buf, 7); 
-    READOCT(uint16_t, is, m_c_rdev, small_buf, 7); 
-    READOCT(uint32_t, is, m_c_mtime, large_buf, 12); 
-    READOCT(uint16_t, is, m_c_namesize, small_buf, 7); 
-    READOCT(uint32_t, is, m_c_filesize, large_buf, 12); 
-    //readOctBuffer<uint16_t>(is, small_buf, 7, m_c_dev);
-    //readOctBuffer<uint16_t>(is, small_buf, 7, m_c_ino);
-    //readOctBuffer<uint16_t>(is, small_buf, 7, m_c_mode);
-    //readOctBuffer<uint16_t>(is, small_buf, 7, m_c_uid);
-    //readOctBuffer<uint16_t>(is, small_buf, 7, m_c_gid);
-    //readOctBuffer<uint16_t>(is, small_buf, 7, m_c_nlink);
-    //readOctBuffer<uint16_t>(is, small_buf, 7, m_c_rdev);
-    //readOctBuffer<uint32_t>(is, large_buf, 12, m_c_mtime);
-    //readOctBuffer<uint16_t>(is, small_buf, 7, m_c_namesize);
-    //readOctBuffer<uint32_t>(is, large_buf, 12, m_c_filesize);
+    READOCT(uint16_t, is, m_c_dev, small_buf, 7);
+    READOCT(uint16_t, is, m_c_ino, small_buf, 7);
+    READOCT(uint16_t, is, m_c_mode, small_buf, 7);
+    READOCT(uint16_t, is, m_c_uid, small_buf, 7);
+    READOCT(uint16_t, is, m_c_gid, small_buf, 7);
+    READOCT(uint16_t, is, m_c_nlink, small_buf, 7);
+    READOCT(uint16_t, is, m_c_rdev, small_buf, 7);
+    READOCT(uint32_t, is, m_c_mtime, large_buf, 12);
+    READOCT(uint16_t, is, m_c_namesize, small_buf, 7);
+    READOCT(uint32_t, is, m_c_filesize, large_buf, 12);
 
     if (m_c_namesize >= 1)
     {
@@ -253,5 +317,26 @@ void POSHeader::read(std::istream & is)
     LOG_DEBUG("Offsets: start = %lu, data = %lu\n\n", m_headerOffset, m_dataOffset);
 }
 
+const std::stringstream &POSFile::readDescription(std::stringstream &ss) const
+{
+    if (!hasDescriptionFile())
+    {
+        throw RoamesError("No description file found");
+    }
+    HeaderMap::const_iterator itr = m_headers.find("description");
+    const POSHeader &hdr = itr->second;
 
+    if (!m_fileStream.good())
+        throw RoamesError("Invalid filestream");
+    m_fileStream.seekg(hdr.getDataOffset());
+    if (!m_fileStream.good())
+        throw RoamesError("Failed to seek to begining of description data");
+    // the description data is a simple text file so we should easily fit it in memory
+    std::unique_ptr<char> buf(new char[hdr.getDataSize()]);
+    m_fileStream.read(buf.get(), hdr.getDataSize());
+    if (!m_fileStream.good())
+        throw RoamesError("Failed to read description data");
 
+    ss << buf.get();
+    return ss;
+}

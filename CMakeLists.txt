@@ -11,8 +11,8 @@ set( SRCS main.cpp )
 add_executable( PosReader ${SRCS} )
 
 install( TARGETS PosReader
-	RUNTIME DESTINATION bin
-	LIBRARY DESTINATION lib
-	ARCHIVE DESTINATION lib
+    RUNTIME DESTINATION bin
+    LIBRARY DESTINATION lib
+    ARCHIVE DESTINATION lib
 )
 
